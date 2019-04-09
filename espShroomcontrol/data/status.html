@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html data-theme="dark">
+    <head>
+        <title>Dank Growbox Control 1.0</title>
+        <link rel="stylesheet" href="style.css">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+        <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+        <script tpye="text/javascript" src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+        <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/ui-darkness/jquery-ui.css" type="text/css">
+        <script type="text/javascript" src="https://fgelinas.com/code/timepicker/jquery.ui.timepicker.js?v=0.3.3"></script>
+        <link rel="stylesheet" href="https://fgelinas.com/code/timepicker/jquery.ui.timepicker.css?v=0.3.3" type="text/css">
+        <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+        <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+        <script src="status.js"></script>
+    </head>
+    <body  onkeypress="handleEnter(event)">
+        <h1><u>Growbox Status</u></h1>
+        <table style="width: 120px;" border="1">
+            <tbody>
+                <tr>
+                    <td style="width: 60px;">Temperature</td><td style="width: 60px;" >Humidity</td><td style="width: 60px;" >Light</td><td style="width: 60px;" >Fans</td>
+                </tr>
+                <tr>
+                    <td class="temp-value" style="width: 60px;">x</td><td class="humid-value" style="width: 60px;">x</td><td class="light-value" style="width: 60px;">x</td><td class="fan-value" style="width: 60px;">x</td>
+                </tr>
+        </tbody>
+        </table>
+        <h1><u>Configuration</u></h1>
+        <p  id="ConfigTimes"> 
+            <select name="ConfigTimes" id="ConfigTimeId" size="10" width="300px" onchange="onTimesSelect(this.value);">
+            </select>
+        </p>
+        <p id="ConfigData">
+            Start  :<input type="text"  name="timestart" id="timepicker_start"/></br>
+            End     :<input type="text" name="timeend" id="timepicker_end" /></br></br>
+            LEDs: <select name="StateSelect" size="2">
+                <option>On</option>
+                <option>Off</option>
+            </select></br></br>
+            Name: <input type="text"  name="timespanname" /></br>
+            <input class="submit-target" id="timespanbuttons" type="button" value="New" onclick="newTimeRange();" />
+            <input class="submit-target" id="timespanbuttons" type="button" value="Save" onclick="saveTimeRange();" />
+            <input class="submit-target" id="timespanbuttons" type="button" value="Delete" onclick="deleteTimeRange();" />
+        </p></br>
+        <p  id="ConfigDates"> 
+            <select name="ConfigDates" id="ConfigDatesId" size="10" width="300px" onchange="onDatesSelect();">
+            </select>
+        </p>
+        <p id="DatesData">
+            Daterange:<input type="text" name="daterange" value="01/01/2018 - 01/15/2018" style="margin-left:10px"/></br>
+            </br></br></br></br></br>
+            Name: <input type="text" name="datename" /></br>
+            <input class="submit-target" id="datebuttons" type="button" value="New" onclick="newDateRange();" />
+            <input class="submit-target" id="datebuttons" type="button" value="Save" onclick="saveDateRange();" />
+            <input class="submit-target" id="datebuttons" type="button" value="Delete" onclick="deleteDateRange();" />
+        </p>
+        <input class="submit-target" id="datebuttons" style="clear:both" type="button" value="Send to Device" onclick="sendToDevice();" />
+        <h1 style="clear:both;margin-top:1000px"><u>DEBUG STUFF</u></h1>
+        <p id="status">
+            <textarea class="status-box" readonly rows="10" style="width:100%"></textarea>
+        </p>
+        <p>
+            <input class="serial-input" name="serial"/>
+        </p>
+    </body>
+</html>
+    

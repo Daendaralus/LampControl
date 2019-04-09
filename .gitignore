@@ -1,0 +1,41 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.code-workspace
+espShroomcontrol/include/wifi.h
+espShroomcontrol/.travis.yml
+espShroomcontrol/platformio.ini
+espShroomcontrol/.vscode/
+mspMainframe/platformio.ini
+mspMainframe/.vscode/
+mspMainframe/.travis.yml
+espShroomcontrol/include/wifipw.h
