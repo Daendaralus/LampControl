@@ -69,15 +69,20 @@ class DateConfig
 
   fillBoxes()
   {
-    $("[name='daterange']").val(`${this.start} - ${this.end}`); // TODO Format differently
+    $("[name='daterange']").val(`${momentFormatted(this.start)} - ${momentFormatted(this.end)}`); // TODO Format differently
     $("[name='datename']").val(this.name);
     $("[name='ConfigTimes']").val(TimeMap.get(this.timeid).name);
   }
 
   toJSON()
   {
-    return JSON.parse(`{'id':'${this.id}', 'name':'${this.name}','start':'${this.start}','end':'${this.end}','timeid':'${this.timeid}'}`);
+    return JSON.parse(`{'id':'${this.id}', 'name':'${this.name}','start':'${this.start.dayOfYear()}','end':'${this.end.dayOfYear()}','timeid':'${this.timeid}'}`);
   }
+}
+
+function momentFormatted(date)
+{
+  return date.format('DD/MM/YYYY');
 }
 
 var selectedTimeConfig="";
@@ -96,7 +101,7 @@ function updateStatus() {
         $('.status-box').scrollTop(99999);
       },
       complete: function(obj, status){
-        //setTimeout(updateStatus, 1000); 
+        setTimeout(updateStatus, 1000); 
       }
     });
     // you could choose not to continue on failure...
@@ -169,17 +174,11 @@ $(document).ready(function() {
 
     $('input[name="timestart"]').timepicker({
        showLeadingZero: false,
-       onSelect: tpStartSelect,
-       maxTime: {
-           hour: 16, minute: 30
-       }
+       onSelect: tpStartSelect
    });
    $('#timepicker_end').timepicker({
        showLeadingZero: false,
-       onSelect: tpEndSelect,
-       minTime: {
-           hour: 9, minute: 15
-       }
+       onSelect: tpEndSelect
    });
    var today = new Date();
     $('input[name="daterange"]').daterangepicker({
@@ -189,8 +188,8 @@ $(document).ready(function() {
       startDate: today.getDate() + '/' + (today.getMonth()+1)+'/'+ today.getFullYear()
     }, function(start, end, label) {
       console.log("A new date selection was made: " + start.format('YYYY-MM-DD') + ' to ' + end.format('YYYY-MM-DD'));
-      lastSelectEnd=end.format('DD/MM/YYYY');
-      lastSelectStart=start.format('DD/MM/YYYY');
+      lastSelectEnd=end;//.format('DD/MM/YYYY');
+      lastSelectStart=start;//.format('DD/MM/YYYY');
     });
 
     $('.submit-target').onclick = submitTarget;
@@ -347,6 +346,9 @@ function onDatesSelect(value)
   var x = document.getElementById("ConfigDatesId");
   var meme = getDateByName(x.value);
   meme.fillBoxes();
+  var drp = $('input[name="daterange"]').data('daterangepicker');
+  drp.setStartDate(meme.start);
+  drp.setEndDate(meme.end);
 }
 
 function onTimesSelect(value)

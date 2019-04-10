@@ -80,14 +80,49 @@ String string_format( const String& format, Args ... args )
 
 time_t getLocalTime()
 {
-  return (time_t)time(nullptr) - 7*3600;;
+  return (time_t)time(nullptr) - 6*3600;
+}
+
+tm getLocalTM()
+{
+  auto now = getLocalTime();
+  tm split = *localtime(&now);
+  split.tm_mon+=1;
+
+  split.tm_year+=1900;
+
+  return split;
 }
 
 String getFormattedLocalTime()
 {
-  auto now = getLocalTime();
-  tm split = *localtime(&now);
-  return String(string_format("%d-%02d-%02d %02d:%02d:%02d", split.tm_year+1900, split.tm_mon+1, split.tm_mday, split.tm_hour, split.tm_min, split.tm_sec));
+  tm split = getLocalTM();
+  return String(string_format("%d-%02d-%02d %02d:%02d:%02d", split.tm_year, split.tm_mon, split.tm_mday, split.tm_hour, split.tm_min, split.tm_sec));
+}
+
+//Stolen fromm :))) https://mariusbancila.ro/blog/2017/08/03/computing-day-of-year-in-c/
+namespace datetools
+{
+   namespace details
+   {
+      constexpr unsigned int days_to_month[2][12] =
+      {
+         // non-leap year
+         { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 },
+         // leap year
+         { 0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335 },
+      };
+   }
+ 
+   constexpr bool is_leap(int const year) noexcept
+   {
+      return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+   }
+ 
+   constexpr unsigned int day_of_year(int const year, unsigned int const month, unsigned int const day)
+   {
+      return details::days_to_month[is_leap(year)][month - 1] + day;
+   }
 }
 
 
@@ -278,6 +313,7 @@ void handleConfigSet()
   if(server.args() > 1&& server.hasArg("timeranges") &&  server.hasArg("dateranges"))
   {
     //json sstuff
+    
     for(auto c : server.arg("input"))
     {
       if(c=='~')
@@ -511,7 +547,8 @@ void loop(void){
       auto h = sensor.getHumidity();
       auto t = sensor.getTemperature();
       startMessageLine();
-      StatusPrintln(string_format("Temp: %f | Humid: %f", t, h));
+
+      StatusPrintln(string_format("Time:"));
       last_result_time = millis();
     }
 
