@@ -38,7 +38,7 @@ class TimeConfig
 
   toJSON()
   {
-    return JSON.parse(`{'id':'${this.id}', 'name':'${this.name}','start':'${this.start}','end':'${this.end}'}`);
+    return JSON.parse(`{"id":"${this.id}", "name":"${this.name}","start":"${this.start}","end":"${this.end}"}`);
   }
 }
 
@@ -76,7 +76,7 @@ class DateConfig
 
   toJSON()
   {
-    return JSON.parse(`{'id':'${this.id}', 'name':'${this.name}','start':'${this.start.dayOfYear()}','end':'${this.end.dayOfYear()}','timeid':'${this.timeid}'}`);
+    return JSON.parse(`{"id":"${this.id}", "name":"${this.name}","start":"${this.start.dayOfYear()}","end":"${this.end.dayOfYear()}","timeid":"${this.timeid}"}`);
   }
 }
 
@@ -360,24 +360,24 @@ function onTimesSelect(value)
 
 function sendToDevice()
 {
-  var tobj = new Object();
-  for(var timething in TimeMap)
+  var tobj = {timeranges:[{}], dateranges:[{}]};
+  for(let [k,v] of TimeMap)
   {
-    tobj.timeranges.push(timething[1].toJSON());
+    tobj["timeranges"].push(v.toJSON());
   }
   for(var timething in DateMap)
   {
     tobj.dateranges.push(timething[1].toJSON());
   }
+  console.log(JSON.stringify(tobj));
 
-
-  $.ajax({
-    method: "PUT",
-    url: window.location.origin+"/update/configs",
-    data: tobj,
-    success: function()
-    {
-      alert("Success! :)");
-    }
-  });
+  // $.ajax({
+  //   method: "PUT",
+  //   url: window.location.origin+"/update/configs",
+  //   data: tobj,
+  //   success: function()
+  //   {
+  //     alert("Success! :)");
+  //   }
+  // });
 }
