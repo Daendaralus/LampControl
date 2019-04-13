@@ -57,10 +57,74 @@ bool pin1=0, pin3 =0;
 bool panelStatus = false;
 bool fanStatus = false;
 
-const String configFileName = "LightConfig.txt";
-typedef uint8_t DailyConfiguration[24][60]; //Light configuration for a day, Minute resolution
-std::map<int, std::pair<String, DailyConfiguration>> DailyConfigMap;
-int CalendarToConfig[366]; //Configuration for a specific day
+const String configFileName = "/LightConfig.txt";
+struct DailyConfiguration
+{
+
+  DailyConfiguration()
+{
+  id = -1;
+}
+  DailyConfiguration(uint8_t i, String n, uint8_t sm, uint8_t sh, uint8_t em, uint8_t eh)
+  {
+    id = i;
+    name = n.c_str();
+    start_minutes = sm;
+    start_hours=sh;
+    end_hours = eh;
+    end_minutes=em;
+  }
+
+  DailyConfiguration(const DailyConfiguration& b)
+  {
+    id = b.id;
+    name = b.name.c_str();
+    start_minutes = b.start_minutes;
+    start_hours=b.start_hours;
+    end_hours = b.end_hours;
+    end_minutes=b.end_minutes;
+  }
+  DailyConfiguration& operator=(const DailyConfiguration& b)
+  {
+    id = b.id;
+    name = b.name.c_str();
+    start_minutes = b.start_minutes;
+    start_hours=b.start_hours;
+    end_hours = b.end_hours;
+    end_minutes=b.end_minutes;
+    return *this;
+  }
+  uint8_t id=0;
+  String name;
+  uint8_t start_minutes=0;
+  uint8_t start_hours=0;
+  uint8_t end_minutes=0;
+  uint8_t end_hours = 0;
+};
+struct DateConfiguration
+{
+DateConfiguration()
+{
+  id = -1;
+}
+
+  DateConfiguration(uint8_t i, String n, uint8_t sd, uint8_t ed, uint8_t dailyConfig)
+  {
+    id = i;
+    name = n.c_str();
+    start_day = sd;
+    end_day = ed;
+    daily_id = dailyConfig;
+  }
+  uint8_t id=0;
+  String name;
+  uint8_t start_day=0;
+  uint8_t end_day=0;
+  uint8_t daily_id = 0;
+};
+std::map<uint8_t, DailyConfiguration> DailyConfigMap;
+uint8_t CalendarToConfig[366]; //Configuration for a specific day
+std::map<uint8_t, DateConfiguration> CalendarConfigMap;
 
 float lastHum = -1;
 float lastTemp = -1;
@@ -172,12 +236,14 @@ String getContentType(String filename){
 }
 bool handleFileRead(String path){  // send the right file to the client (if it exists)
   startMessageLine();
-  stream2.print("handleFileRead: " + path);
+  Serial.print("handleFileRead: " + path);
   if(path.endsWith("/")) path += "status.html";           // If a folder is requested, send the index file
   String contentType = getContentType(path);             // Get the MIME type
   if(SPIFFS.exists(path)){  // If the file exists, either as a compressed archive, or normal                                       // Use the compressed version
-    File file = SPIFFS.open(path, "r");                    // Open the file
+    File file = SPIFFS.open(path, "r"); 
+    Serial.print("file exists....\n")  ;                 // Open the file
     size_t sent = server.streamFile(file, contentType);    // Send it to the client
+    Serial.print(string_format("wrote %d bytes", sent));
     file.close();                                          // Close the file again
     stream2.println(String("\tSent file: ") + path);
     return true;
@@ -197,6 +263,92 @@ bool writeFile(String text, String path)
   unsigned int freebytes = info.totalBytes-info.usedBytes;
   StatusPrintln(string_format("free bytes on flash: %i", freebytes)); 
   return true;
+}
+
+/*
+//dailyconfigs
+-id:name
+--minuteconfig,.....
+
+~dailyid,....
+
+*/
+void saveLightConfiguration()
+{
+  return;
+  File f = SPIFFS.open(configFileName, "w");
+  if(!f)
+  {
+    Serial.println("Failed to open file while saving configuration!");
+  }
+
+  for(auto daily : DailyConfigMap)
+  {
+    String thing = string_format("-%d:%s:%d:%d:%d:%d:\n", daily.first, daily.second.name.c_str(), daily.second.start_hours,daily.second.start_minutes, daily.second.end_hours,daily.second.end_minutes);
+    f.printf(thing.c_str());
+    Serial.println(thing);
+  }
+  for(auto date : CalendarConfigMap)
+  {
+    String thing = string_format("~%d:%s:%d:%d:%d:\n", date.first, date.second.name.c_str(), date.second.start_day,date.second.end_day, date.second.daily_id);
+    f.printf(thing.c_str());
+    Serial.println(thing);
+  }
+  f.flush();
+  f.close();
+}
+
+void readLightConfiguration()
+{
+  return;
+  File f = SPIFFS.open(configFileName, "r");
+  
+  if(!f)
+  {
+    startMessageLine();
+    Serial.println("Failed to open file while reading configuration! IMPORTANT. CHECK LIGHTS AND CONFIG PLEASE");
+  }
+  CalendarConfigMap.clear();
+  DailyConfigMap.clear();
+       for(int x = 0;x<366;++x)
+      {
+        CalendarToConfig[x] = -1;
+      }
+  String curline =  f.readStringUntil('\n');
+  Serial.println(curline);
+  while(curline.length()>0)
+  {
+    if (curline.length() > 1 && curline[0] == '-')    {
+      String idname = curline.substring(1); //id:name
+      std::vector<String> splits;
+      size_t lastidx=-1;
+      for(auto delim = idname.indexOf(':'); delim!=-1;delim = idname.indexOf(':', delim+1))
+      {
+        splits.push_back(idname.substring(lastidx+1, delim-lastidx-1));
+        lastidx=delim;
+      }
+      DailyConfigMap[splits[0].toInt()]= DailyConfiguration(splits[0].toInt(),splits[1], splits[3].toInt(),splits[2].toInt(),splits[5].toInt(),splits[4].toInt());
+    }
+    else if(curline.length()>1&&curline[0] == '~')
+    {
+      String idname = curline.substring(1); //id:name
+      std::vector<String> splits;
+      size_t lastidx=-1;
+      for(auto delim = idname.indexOf(':'); delim!=-1;delim = idname.indexOf(':', delim+1))
+      {
+        splits.push_back(idname.substring(lastidx+1, delim-lastidx-1));
+        lastidx=delim;
+      }
+      CalendarConfigMap[splits[0].toInt()]= DateConfiguration(splits[0].toInt(),splits[1],splits[2].toInt(),splits[3].toInt(),splits[4].toInt());
+      for(int i = CalendarConfigMap[splits[0].toInt()].start_day;i<CalendarConfigMap[splits[0].toInt()].end_day;++i)
+      {
+        CalendarToConfig[i]=CalendarConfigMap[splits[0].toInt()].daily_id;
+      }
+    }
+  curline =  f.readStringUntil('\n');
+    Serial.println(curline);
+
+  }
 }
 
 String getFlashData()
@@ -251,15 +403,14 @@ void handleNotFound(){
 
 void handleStatusData()
 {
-  StaticJsonBuffer<0x1FF> jsonBuffer; //TODO SOMETHING + STATUS BUFFER SIZE
-  JsonObject& jsonObj = jsonBuffer.createObject();
+  StaticJsonDocument<0x1FF> jsonBuffer; //TODO SOMETHING + STATUS BUFFER SIZE
   char JSONmessageBuffer[0x1FF];
-  jsonObj["tval"] = lastTemp;
-  jsonObj["hval"] = lastHum;
-  jsonObj["light"] = panelStatus;
-  jsonObj["fan"] = fanStatus;
-  jsonObj["status"] = stream2.available()?stream2.readString():""; //TODO move time thing to read buffers part on condition of encountering a \n :)
-  jsonObj.prettyPrintTo(JSONmessageBuffer, sizeof(JSONmessageBuffer));
+  jsonBuffer["tval"] = lastTemp;
+  jsonBuffer["hval"] = lastHum;
+  jsonBuffer["light"] = panelStatus;
+  jsonBuffer["fan"] = fanStatus;
+  jsonBuffer["status"] = stream2.available()?stream2.readString():""; //TODO move time thing to read buffers part on condition of encountering a \n :)
+  serializeJsonPretty(jsonBuffer,JSONmessageBuffer);
   server.send(200, "application/json", JSONmessageBuffer);
 }
 
@@ -304,31 +455,106 @@ void handleSerialInput()
 //Have to parse the config stuff from the array format to time and date start/end ranges and vice versa
 void handleConfigGet()
 {
+    int numT = DailyConfigMap.size();
+    int numD = CalendarConfigMap.size();
+    
+    
+    DynamicJsonDocument doc(JSON_OBJECT_SIZE(2));
+    DynamicJsonDocument docT(JSON_ARRAY_SIZE(numT));
+    JsonArray arrayT = docT.to<JsonArray>();
+    DynamicJsonDocument docD(JSON_ARRAY_SIZE(numD));
+    JsonArray arrayD = docD.to<JsonArray>();
+    Serial.println(string_format("Times: %d | Dates: %d", numT, numD));
+    for(auto time : DailyConfigMap)
+    {
+      DynamicJsonDocument t_jd(numT*JSON_OBJECT_SIZE(6));
+      JsonObject t_j = t_jd.to<JsonObject>();
+      t_j["id"] = time.second.id;
+      t_j["name"] = time.second.name;
+      t_j["starth"] = time.second.start_hours;
+      t_j["startm"] = time.second.start_minutes;
+      t_j["endh"] = time.second.end_hours;
+      t_j["endm"] = time.second.end_minutes;
+      arrayT.add(t_j);
+    }
+    for(auto time : CalendarConfigMap)
+    {
+      DynamicJsonDocument t_jd(numD*JSON_OBJECT_SIZE(5));
+      JsonObject t_j = t_jd.to<JsonObject>();
+      t_j["id"] = time.second.id;
+      t_j["name"] = time.second.name;
+      t_j["start"] = time.second.start_day;
+      t_j["end"] = time.second.end_day;
+      t_j["timeid"] = time.second.daily_id;
+      arrayD.add(t_j);
+    }
+    doc["timeranges"] = arrayT;
+    doc["dateranges"] = arrayD;
+    String meme;
+    serializeJson(doc, meme);
+    Serial.println(meme);
 
-  server.send(200);
+    server.send(200, "application/json", meme);
 }
 
 void handleConfigSet()
 {
-  if(server.args() > 1&& server.hasArg("timeranges") &&  server.hasArg("dateranges"))
+
+  if(server.hasArg("numTimes") &&  server.hasArg("numDates"))
   {
     //json sstuff
-    
-    for(auto c : server.arg("input"))
+    int numT = server.arg("numTimes").toInt();
+    int numD = server.arg("numDates").toInt();
+    if(server.args() < 3 + numT*6+numD*5)
     {
-      if(c=='~')
-        {digitalWrite(1, !pin1);
-        pin1=!pin1; StatusPrintln("Set pin 1 to: " + string_format("%d :)", pin1));}
-      else if(c=='-')
-      {
-        digitalWrite(3, !pin3);
-        pin3=!pin3; 
-      }
-
+      //error and stuff
+        Serial.println("Set failed at 1");
+      server.send(400);
+    }    
+    for(int i=0;i<numT;++i)
+    {
+      DailyConfigMap[server.arg(2+i*6).toInt()]=DailyConfiguration(server.arg(2+i*6).toInt(), server.arg(2+i*6+1),server.arg(2+i*6+3).toInt(),server.arg(2+i*6+2).toInt(), server.arg(2+i*6+5).toInt(),server.arg(2+i*6+4).toInt());
     }
-    StatusPrintln("Got command! : "+ server.arg("input"));
+
+     for(int x = 0;x<366;++x)
+      {
+        CalendarToConfig[x] = 255;
+      }
+    for(int i=0;i<numD;++i)
+    {
+      DateConfiguration temp(server.arg(2+numT*6+i*5).toInt(), server.arg(2+numT*6+i*5+1),server.arg(2+numT*6+i*5+2).toInt(),server.arg(2+numT*6+i*5+3).toInt(),server.arg(2+numT*6+i*5+4).toInt());
+      if(DailyConfigMap.find(temp.daily_id)== DailyConfigMap.end())
+      {
+        //error and stuff
+        readLightConfiguration();
+        Serial.println("Set failed at 2");
+        server.send(400);
+        return;
+      }
+      
+      CalendarConfigMap[temp.id] = temp;
+      
+     
+      
+      for(int x = temp.start_day;x<temp.end_day;++x)
+      {
+        if(CalendarToConfig[x]!=255)
+        {
+          //error overlapping memes
+          readLightConfiguration();
+        Serial.println(string_format("Set failed at 3: %d - %d", x, CalendarToConfig[x]));
+          server.send(400);
+          return;
+        }
+        CalendarToConfig[x]=temp.daily_id;
+      }
+      
+    }
     //stream.println("");
   }
+  Serial.println(DailyConfigMap.size());
+  Serial.println(CalendarConfigMap.size());
+  saveLightConfiguration();
   server.send(202);
 }
 
@@ -336,7 +562,6 @@ void handleConfigSet()
 void addRESTSources()
 {
   server.on("/get/status", HTTP_GET, handleStatusData);
-  //server.on("/update/target", HTTP_PUT, handleUpdateTarget);
   server.on("/update/serialinput", HTTP_PUT, handleSerialInput);
   server.on("/get/config", HTTP_GET, handleConfigGet);
   server.on("/set/config", HTTP_PUT, handleConfigSet);
@@ -344,125 +569,21 @@ void addRESTSources()
 }
 
 
-/*
-//dailyconfigs
--id:name
---minuteconfig,.....
 
-~dailyid,....
-
-*/
-void saveLightConfiguration()
-{
-  File f = SPIFFS.open(configFileName, "w");
-  if(!f)
-  {
-    startMessageLine();
-    StatusPrintln("Failed to open file while saving configuration!");
-  }
-
-  for(auto daily : DailyConfigMap)
-  {
-    f.printf("-%d:%s\n", daily.first, daily.second.first.c_str());
-    f.print("--");
-
-    for(auto hourly : daily.second.second)
-    {
-      for(int i = 0; i<60;++i)
-      {
-        f.print(hourly[i]);f.print(',');
-      }
-    }
-    f.println();
-  }
-  f.println("~");
-  for(int i = 0;i<366;++i)
-  {
-    f.printf("%d,", CalendarToConfig[i]);
-  }
-}
-
-void readLightConfiguration()
-{
-  File f = SPIFFS.open(configFileName, "r");
-  if(!f)
-  {
-    startMessageLine();
-    StatusPrintln("Failed to open file while reading configuration! IMPORTANT. CHECK LIGHTS AND CONFIG PLEASE");
-  }
-
-  String curline =  f.readStringUntil('\n');
-  int lastid;
-  while(curline.length()>0)
-  {
-    if (curline.length() > 1 && curline[0] == '-' && curline[1] != '-')    {
-      String idname = curline.substring(1); //id:name
-      size_t delimiterpos = idname.indexOf(':'); 
-      lastid = idname.substring(0, delimiterpos).toInt();
-      String name = idname.substring(delimiterpos+1);
-      DailyConfigMap[lastid].first = name;
-    }
-    else if(curline.length()>1&&curline[0] == '-' && curline[1] =='-' )
-    {
-        int curhour = 0;
-        int curmin = 0;
-        curline = curline.substring(2);
-        int lastdelimiterindex=0;
-        int nextdelimiterindex =curline.indexOf(',');
-        while(true)
-        {
-          DailyConfigMap[lastid].second[curhour][curmin++] = curline.substring(lastdelimiterindex, nextdelimiterindex-lastdelimiterindex).toInt();
-          if(curmin>59)
-          {
-            curhour++;
-            curmin=0;
-          }
-          if(curhour>23)
-          {
-            break;
-          }
-          lastdelimiterindex = nextdelimiterindex+1;
-          nextdelimiterindex = curline.indexOf(',', nextdelimiterindex);
-          if (lastdelimiterindex == 0)
-            break;
-        }
-    }
-    else if(curline.length()>0 && curline[0] =='~')
-    {
-      int curday = 0;
-        curline = curline.substring(1);
-        int lastdelimiterindex=0;
-        int nextdelimiterindex =curline.indexOf(',');
-        while(true)
-        {
-          CalendarToConfig[curday++] = curline.substring(lastdelimiterindex, nextdelimiterindex-lastdelimiterindex).toInt();
-          if(curday>365)
-          {
-            break;
-          }
-          lastdelimiterindex = nextdelimiterindex+1;
-          nextdelimiterindex = curline.indexOf(',', nextdelimiterindex);
-          if (lastdelimiterindex == 0)
-					  break;
-        }
-    }
-  curline =  f.readStringUntil('\n');
-  }
-}
 
 
 void setup(void){
   stream2.clear();
 
   //GPIO 1 (TX) swap the pin to a GPIO.
-  pinMode(1, FUNCTION_3); 
-  //GPIO 3 (RX) swap the pin to a GPIO.
-  pinMode(3, FUNCTION_3); 
-  pinMode(3, OUTPUT);
-    pinMode(1, OUTPUT);
+  // pinMode(1, FUNCTION_3); 
+  // //GPIO 3 (RX) swap the pin to a GPIO.
+  // pinMode(3, FUNCTION_3); 
+  // pinMode(3, OUTPUT);
+  //   pinMode(1, OUTPUT);
 
-  digitalWrite(1, HIGH);
-  digitalWrite(3, HIGH);
+  // digitalWrite(1, HIGH);
+  // digitalWrite(3, HIGH);
   
   //AM2320 stuff
   Wire.begin(0,2);
@@ -470,7 +591,7 @@ void setup(void){
 
   //pinMode(led, OUTPUT);
   //digitalWrite(led, 0);
-  //Serial.begin(115200);
+  Serial.begin(115200);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   stream2.println("");
@@ -507,8 +628,8 @@ void setup(void){
 
 
   OTASetup();
-  SPIFFS.begin();
-  server.begin();
+  auto res = SPIFFS.begin();
+  Serial.println(res?"SPIFFS STARTED": "SHITS FUCKED");
   StatusPrintln("HTTP server started");
   startMessageLine();
   stream2.print("free heap=");
@@ -525,9 +646,17 @@ void setup(void){
   }
   startMessageLine();
   StatusPrintln("Reading lighting data...");
-  readLightConfiguration();
-
+  //readLightConfiguration();
+Dir root = SPIFFS.openDir("");
+ 
+  while(root.next()){
+ 
+      Serial.print("FILE: ");
+      Serial.println(root.fileName());
+  }
   stream2.println("Success.");
+    server.begin();
+
 }
 
 void loop(void){
@@ -540,17 +669,17 @@ void loop(void){
 //   stream2.println(stream2.pos);
 //   delayStart = millis();
 //   }
-    static int last_result_time = 0;
-    if(millis() - last_result_time > 1000)
-    {
-      sensor.measure();
-      auto h = sensor.getHumidity();
-      auto t = sensor.getTemperature();
-      startMessageLine();
+    // static int last_result_time = 0;
+    // if(millis() - last_result_time > 1000)
+    // {
+    //   sensor.measure();
+    //   auto h = sensor.getHumidity();
+    //   auto t = sensor.getTemperature();
+    //   //startMessageLine();
 
-      StatusPrintln(string_format("Time:"));
-      last_result_time = millis();
-    }
+    //   //StatusPrintln(string_format("Time:"));
+    //   last_result_time = millis();
+    // }
 
     server.handleClient();
   //console_send();

@@ -38,7 +38,15 @@ class TimeConfig
 
   toJSON()
   {
-    return JSON.parse(`{"id":"${this.id}", "name":"${this.name}","start":"${this.start}","end":"${this.end}"}`);
+    var tobj = new Object;
+    tobj["id"] = this.id;
+    tobj["name"] = this.name;
+    tobj["start_h"] = parseInt(this.start.split(":")[0]);
+    tobj["start_m"] = parseInt(this.start.split(":")[1]);
+    tobj["end_h"] = parseInt(this.end.split(":")[0]);
+    tobj["end_m"] = parseInt(this.end.split(":")[1]);
+    // var json = `{\"id\":${this.id}, \"name\":\"${this.name}\",\"starth\":${start_h},\"startm\":${start_m},\"endh\":${end_h},\"endm\":${end_m}}`;
+    return tobj;
   }
 }
 
@@ -76,7 +84,14 @@ class DateConfig
 
   toJSON()
   {
-    return JSON.parse(`{"id":"${this.id}", "name":"${this.name}","start":"${this.start.dayOfYear()}","end":"${this.end.dayOfYear()}","timeid":"${this.timeid}"}`);
+    var tobj = new Object;
+    tobj["id"] = this.id;
+    tobj["name"] = this.name;
+    tobj["start"] = this.start.dayOfYear();
+    tobj["end"] = this.end.dayOfYear();
+    tobj["timeid"] = this.timeid;
+    // var json = `{\"id\":${this.id}, \"name\":\"${this.name}\",\"start\":${this.start.dayOfYear()},\"end\":${this.end.dayOfYear()},\"timeid\":${this.timeid}}`;
+    return tobj;
   }
 }
 
@@ -360,24 +375,23 @@ function onTimesSelect(value)
 
 function sendToDevice()
 {
-  var tobj = {timeranges:[{}], dateranges:[{}]};
+  var tobj = {numTimes: TimeMap.size, numDates: DateMap.size, timeranges:[], dateranges:[]};
   for(let [k,v] of TimeMap)
   {
     tobj["timeranges"].push(v.toJSON());
   }
-  for(var timething in DateMap)
+  for(let [k,v] of DateMap)
   {
-    tobj.dateranges.push(timething[1].toJSON());
+    tobj["dateranges"].push(v.toJSON());
   }
-  console.log(JSON.stringify(tobj));
-
-  // $.ajax({
-  //   method: "PUT",
-  //   url: window.location.origin+"/update/configs",
-  //   data: tobj,
-  //   success: function()
-  //   {
-  //     alert("Success! :)");
-  //   }
-  // });
+  
+  $.ajax({
+    method: "PUT",
+    url: window.location.origin+"/set/config",
+    data: tobj,
+    success: function()
+    {
+      alert("Success! :)");
+    }
+  });
 }
