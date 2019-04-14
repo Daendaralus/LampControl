@@ -2,16 +2,17 @@
 <html data-theme="dark">
     <head>
         <title>Dank Growbox Control 1.0</title>
+        <link rel="icon" href="https://docs.google.com/uc?id=1Ldu1Y582r-9EkHLY7ISTvIAX64wfHDpS&export=download" type="image/x-icon">
         <link rel="stylesheet" href="style.css">
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
         <script type="text/javascript" src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
-        <script tpye="text/javascript" src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+        <script type="text/javascript" src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
         <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/ui-darkness/jquery-ui.css" type="text/css">
-        <script type="text/javascript" src="https://fgelinas.com/code/timepicker/jquery.ui.timepicker.js?v=0.3.3"></script>
+        <script type="text/javascript" src="https://docs.google.com/uc?id=1IZSPiuVTIX2mamz5eG2GZ-Auoi6Au2d5&export=download"></script>
         <link rel="stylesheet" href="jquery.ui.timepicker.css" type="text/css">
         <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
         <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
-        <script src="status.js"></script>
+        <script type="text/javascript" src="status.js"></script><!--https://docs.google.com/uc?id=1FdtRv68PFr1CHJBVF0ChZlmtoM6lYzQQ&export=download"></script>-->
     </head>
     <body  onkeypress="handleEnter(event)">
         <h1><u>Growbox Status</u></h1>
@@ -38,7 +39,7 @@
                 <option>Off</option>
             </select></br></br>
             Name: <input type="text"  name="timespanname" /></br>
-            <input class="submit-target" id="timespanbuttons" type="button" value="New" onclick="newTimeRange();" />
+            <input class="submit-target" id="timespanbuttons" type="button" value="New" onclick="newTimeRangeBtn();" />
             <input class="submit-target" id="timespanbuttons" type="button" value="Save" onclick="saveTimeRange();" />
             <input class="submit-target" id="timespanbuttons" type="button" value="Delete" onclick="deleteTimeRange();" />
         </p></br>
@@ -50,7 +51,7 @@
             Daterange:<input type="text" name="daterange" value="01/01/2018 - 01/15/2018" style="margin-left:10px"/></br>
             </br></br></br></br></br>
             Name: <input type="text" name="datename" /></br>
-            <input class="submit-target" id="datebuttons" type="button" value="New" onclick="newDateRange();" />
+            <input class="submit-target" id="datebuttons" type="button" value="New" onclick="newDateRangeBtn();" />
             <input class="submit-target" id="datebuttons" type="button" value="Save" onclick="saveDateRange();" />
             <input class="submit-target" id="datebuttons" type="button" value="Delete" onclick="deleteDateRange();" />
         </p>

@@ -155,33 +155,29 @@ function handleEnter(e)
 
 function parseTimeJSON(obj)
 {
-  for(var range in obj)
+  obj.forEach(function(range)
   {
-    var timething = new TimeConfig(range.id);
-    timething.start = range.start;
-    timething.end = range.end;
-    timething.name = range.name;
-    TimeMap.set(timething.id, timething);
-    TimeNameToId.set(timething.name, timething.id);
+    newTimeRange(range.id, range.name, `${range.starth}:${range.startm}`, `${range.endh}:${range.endm}`);
+    lastname = range.name;
     if(newid <= range.id)
       newid = range.id+1;
-  }
+  });
+  onTimesSelect("");
 }
 
 function parseDateJSON(obj)
 {
-  for(var range in obj)
+  obj.forEach(function(range)
   {
-    var timething = new DateConfig(range.id);
-    timething.start = range.start;
-    timething.end = range.end;
-    timething.name = range.name;
-    timething.timeid = range.timeid;
-    DateMap.set(timething.id, timething);
-    DateNameToId.set(timething.name, timething.id);
+    var start = moment().dayOfYear(range.start);
+    var end = moment().dayOfYear(range.end);
+    newDateRange(range.id, range.name, start,end, range.timeid);
+    lastname=range.name;
     if(newid <= range.id)
       newid = range.id+1;
-  }
+  });
+
+  onDatesSelect("");
 }
 
 
@@ -259,20 +255,28 @@ function getDateByName(name)
   return DateMap.get(DateNameToId.get(name));
 }
 
-function newTimeRange()
+function newTimeRange(id, name, start, end)
 {
-  var curid = getNewId();
-  var newmeme= new TimeConfig(curid);
-  TimeMap.set(curid, newmeme);
-  newmeme.setName($('input[name="timespanname"]').val());
-  TimeNameToId.set(newmeme.name, curid);
-  newmeme.setStart($('#timepicker_start').val());
-  newmeme.setEnd($('#timepicker_end').val());
+  var newmeme= new TimeConfig(id);
+  TimeMap.set(id, newmeme);
+  newmeme.setName(name);
+  TimeNameToId.set(newmeme.name, id);
+  newmeme.setStart(start);
+  newmeme.setEnd(end);
   var  newopt = document.createElement("option");
   newopt.text = newmeme.name;
   var x = document.getElementById("ConfigTimeId");
   x.add(newopt);
   x.value = newmeme.name;
+}
+
+function newTimeRangeBtn()
+{
+  var curid = getNewId();
+  var name = $('input[name="timespanname"]').val();
+  var start =$('#timepicker_start').val();
+  var end = $('#timepicker_end').val();
+  newTimeRange(curid, name, start, end)
 }
 
 function saveTimeRange()
@@ -305,17 +309,14 @@ function deleteTimeRange()
   x.remove(x.selectedIndex);
 }
 
-function newDateRange()
+function newDateRange(id, name, start, end, timeid)
 {
   var x = document.getElementById("ConfigDatesId");
-  var y = document.getElementById("ConfigTimeId");
-  var timething = getTimeByName(y.value);
-  //New thing
-  var newmeme = new DateConfig(getNewId());
-  newmeme.start = lastSelectStart;
-  newmeme.end = lastSelectEnd;
-  newmeme.timeid = timething.id;
-  newmeme.name = $('input[name="datename"]').val();
+  var newmeme = new DateConfig(id);
+  newmeme.start = start;
+  newmeme.end = end;
+  newmeme.timeid = timeid;
+  newmeme.name = name
   DateMap.set(newmeme.id, newmeme);
   DateNameToId.set(newmeme.name, newmeme.id);
 
@@ -323,6 +324,15 @@ function newDateRange()
   option.text = newmeme.name;
   x.add(option);
   x.value = newmeme.name;
+
+}
+
+function newDateRangeBtn()
+{
+  var y = document.getElementById("ConfigTimeId");
+  var timething = getTimeByName(y.value);
+  //New thing
+  newDateRange(getNewId(), $('input[name="datename"]').val(), lastSelectStart, lastSelectEnd,timething.id);
 }
 
 function saveDateRange()
@@ -364,6 +374,8 @@ function onDatesSelect(value)
   var drp = $('input[name="daterange"]').data('daterangepicker');
   drp.setStartDate(meme.start);
   drp.setEndDate(meme.end);
+  lastSelectEnd=meme.end;
+  lastSelectStart = meme.start;
 }
 
 function onTimesSelect(value)

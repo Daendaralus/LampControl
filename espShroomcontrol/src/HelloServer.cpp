@@ -39,11 +39,9 @@ We want a web interface that:
 
 
 TODO:
--parsing from web interface date format to array format
--checking time and date in loop to switch fans and light
--implement sleep to save money
--check sensor in some sensible interval. maybe store for graphs later idk
-
+-clean up:
+  -serial to stream2
+  -remove unncessary prints
 
 */
 AM2320 sensor;
@@ -235,17 +233,21 @@ String getContentType(String filename){
   return "text/plain";
 }
 bool handleFileRead(String path){  // send the right file to the client (if it exists)
-  startMessageLine();
+  //startMessageLine();
+  // server.client().setNoDelay(1);
+
   Serial.print("handleFileRead: " + path);
   if(path.endsWith("/")) path += "status.html";           // If a folder is requested, send the index file
   String contentType = getContentType(path);             // Get the MIME type
   if(SPIFFS.exists(path)){  // If the file exists, either as a compressed archive, or normal                                       // Use the compressed version
     File file = SPIFFS.open(path, "r"); 
-    Serial.print("file exists....\n")  ;                 // Open the file
-    size_t sent = server.streamFile(file, contentType);    // Send it to the client
-    Serial.print(string_format("wrote %d bytes", sent));
+    auto s = file.size();
+    Serial.print("file exists....\n")  ;             // Open the file
+    server.send_P(200, contentType.c_str(), file.readString().c_str(), s);
+    //size_t sent = server.streamFile(file, contentType);    // Send it to the client
+    //Serial.print(string_format("wrote %d bytes", sent));
     file.close();                                          // Close the file again
-    stream2.println(String("\tSent file: ") + path);
+    Serial.println(String("\tSent file: ") + path);
     return true;
   }
   stream2.println(String("\tFile Not Found: ") + path);
@@ -275,32 +277,33 @@ bool writeFile(String text, String path)
 */
 void saveLightConfiguration()
 {
-  return;
   File f = SPIFFS.open(configFileName, "w");
   if(!f)
   {
     Serial.println("Failed to open file while saving configuration!");
   }
-
   for(auto daily : DailyConfigMap)
   {
     String thing = string_format("-%d:%s:%d:%d:%d:%d:\n", daily.first, daily.second.name.c_str(), daily.second.start_hours,daily.second.start_minutes, daily.second.end_hours,daily.second.end_minutes);
-    f.printf(thing.c_str());
+    auto written = f.printf(thing.c_str());
     Serial.println(thing);
+    Serial.printf("Wrote %d bytes | Error: %d\n", written,f.getWriteError());
   }
   for(auto date : CalendarConfigMap)
   {
     String thing = string_format("~%d:%s:%d:%d:%d:\n", date.first, date.second.name.c_str(), date.second.start_day,date.second.end_day, date.second.daily_id);
-    f.printf(thing.c_str());
+    auto written =f.printf(thing.c_str());
     Serial.println(thing);
+    Serial.printf("Wrote %d bytes | Error: %d\n", written,f.getWriteError());
+    ;
   }
   f.flush();
   f.close();
+  
 }
 
 void readLightConfiguration()
 {
-  return;
   File f = SPIFFS.open(configFileName, "r");
   
   if(!f)
@@ -324,7 +327,8 @@ void readLightConfiguration()
       size_t lastidx=-1;
       for(auto delim = idname.indexOf(':'); delim!=-1;delim = idname.indexOf(':', delim+1))
       {
-        splits.push_back(idname.substring(lastidx+1, delim-lastidx-1));
+        splits.push_back(idname.substring(lastidx+1, delim));
+        Serial.printf("Current split: \"%s\"\n",splits.back().c_str());
         lastidx=delim;
       }
       DailyConfigMap[splits[0].toInt()]= DailyConfiguration(splits[0].toInt(),splits[1], splits[3].toInt(),splits[2].toInt(),splits[5].toInt(),splits[4].toInt());
@@ -336,7 +340,9 @@ void readLightConfiguration()
       size_t lastidx=-1;
       for(auto delim = idname.indexOf(':'); delim!=-1;delim = idname.indexOf(':', delim+1))
       {
-        splits.push_back(idname.substring(lastidx+1, delim-lastidx-1));
+        splits.push_back(idname.substring(lastidx+1, delim));
+                Serial.printf("Current split: \"%s\"\n",splits.back().c_str());
+
         lastidx=delim;
       }
       CalendarConfigMap[splits[0].toInt()]= DateConfiguration(splits[0].toInt(),splits[1],splits[2].toInt(),splits[3].toInt(),splits[4].toInt());
@@ -455,45 +461,46 @@ void handleSerialInput()
 //Have to parse the config stuff from the array format to time and date start/end ranges and vice versa
 void handleConfigGet()
 {
-    int numT = DailyConfigMap.size();
-    int numD = CalendarConfigMap.size();
+    int numT = DailyConfigMap.size()+1;
+    int numD = CalendarConfigMap.size()+1;
     
     
-    DynamicJsonDocument doc(JSON_OBJECT_SIZE(2));
-    DynamicJsonDocument docT(JSON_ARRAY_SIZE(numT));
-    JsonArray arrayT = docT.to<JsonArray>();
-    DynamicJsonDocument docD(JSON_ARRAY_SIZE(numD));
-    JsonArray arrayD = docD.to<JsonArray>();
-    Serial.println(string_format("Times: %d | Dates: %d", numT, numD));
+    DynamicJsonDocument doc(JSON_OBJECT_SIZE(2)+numT*JSON_OBJECT_SIZE(6)+numD*JSON_OBJECT_SIZE(5)+500);
+    DynamicJsonDocument docT(numT*JSON_OBJECT_SIZE(6)+250);
+    DynamicJsonDocument docD(numD*JSON_OBJECT_SIZE(5)+250);
+    auto jobj = doc.as<JsonObject>();
+    Serial.println(string_format("Times: %d | Dates: %d", numT-1, numD-1));
     for(auto time : DailyConfigMap)
     {
-      DynamicJsonDocument t_jd(numT*JSON_OBJECT_SIZE(6));
-      JsonObject t_j = t_jd.to<JsonObject>();
-      t_j["id"] = time.second.id;
-      t_j["name"] = time.second.name;
-      t_j["starth"] = time.second.start_hours;
-      t_j["startm"] = time.second.start_minutes;
-      t_j["endh"] = time.second.end_hours;
-      t_j["endm"] = time.second.end_minutes;
-      arrayT.add(t_j);
+      Serial.println("Constructing JSON for time...");
+      Serial.printf("%d - %s - %d:%d - %d:%d\n", time.second.id, time.second.name.c_str(), time.second.start_hours, time.second.start_minutes, time.second.end_hours, time.second.end_minutes);
+      auto e = docT.addElement();
+      e["id"] = time.second.id;
+      e["name"] = time.second.name;
+      e["starth"] = time.second.start_hours;
+      e["startm"] = time.second.start_minutes;
+      e["endh"] = time.second.end_hours;
+      e["endm"] = time.second.end_minutes;
     }
     for(auto time : CalendarConfigMap)
     {
-      DynamicJsonDocument t_jd(numD*JSON_OBJECT_SIZE(5));
-      JsonObject t_j = t_jd.to<JsonObject>();
-      t_j["id"] = time.second.id;
-      t_j["name"] = time.second.name;
-      t_j["start"] = time.second.start_day;
-      t_j["end"] = time.second.end_day;
-      t_j["timeid"] = time.second.daily_id;
-      arrayD.add(t_j);
+            Serial.println("Constructing JSON for Date...");
+      Serial.printf("%d - %s - %d - %d - %d \n", time.second.id, time.second.name.c_str(), time.second.start_day, time.second.end_day, time.second.daily_id);
+
+      auto e = docD.addElement();
+      e["id"] = time.second.id;
+      e["name"] = time.second.name;
+      e["start"] = time.second.start_day;
+      e["end"] = time.second.end_day;
+      e["timeid"] = time.second.daily_id;
     }
-    doc["timeranges"] = arrayT;
-    doc["dateranges"] = arrayD;
+    doc["timeranges"] = docT.as<JsonArray>();
+    doc["dateranges"] = docD.as<JsonArray>();
     String meme;
     serializeJson(doc, meme);
     Serial.println(meme);
-
+    // server.client().setNoDelay(1);
+    // server.setContentLength(meme.length()*sizeof(char));
     server.send(200, "application/json", meme);
 }
 
@@ -610,7 +617,7 @@ void setup(void){
   stream2.print("IP address: ");
   stream2.println(WiFi.localIP()); 
 
-  if (MDNS.begin("shrooms")) {
+  if (MDNS.begin("shrubs")) {
     StatusPrintln("MDNS responder started"); 
   }
 
@@ -646,7 +653,7 @@ void setup(void){
   }
   startMessageLine();
   StatusPrintln("Reading lighting data...");
-  //readLightConfiguration();
+  readLightConfiguration();
 Dir root = SPIFFS.openDir("");
  
   while(root.next()){
@@ -654,15 +661,21 @@ Dir root = SPIFFS.openDir("");
       Serial.print("FILE: ");
       Serial.println(root.fileName());
   }
-  stream2.println("Success.");
-    server.begin();
+    FSInfo info;
+  SPIFFS.info(info);
 
+  unsigned int freebytes = info.totalBytes-info.usedBytes;
+  Serial.println(string_format("free bytes on flash: %i", freebytes)); 
+    server.begin();
+  Serial.println("Success.");
+  //server.client().setDefaultNoDelay(1);
 }
 
 void loop(void){
   //bufferSerial();
 
   ArduinoOTA.handle();
+  MDNS.update();
 // if (delayRunning && ((millis() - delayStart) >= 2000)) {
 //      stream2.print(stream2.available());
 //   stream2.print(" | ");
@@ -680,7 +693,7 @@ void loop(void){
     //   //StatusPrintln(string_format("Time:"));
     //   last_result_time = millis();
     // }
-
+    delay(100);
     server.handleClient();
   //console_send();
   }
@@ -691,23 +704,20 @@ void OTASetup()
   ArduinoOTA.setPassword(otapw);
   ArduinoOTA.setPort(8266);
   ArduinoOTA.onStart([]() {
-    stream2.println("Start");
+    Serial.println("Start");
   });
   ArduinoOTA.onEnd([]() {
-    stream2.println("\nEnd");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    stream2.printf("Progress: %u%%\r", (progress / (total / 100)));
+    Serial.println("\nEnd");
   });
   ArduinoOTA.onError([](ota_error_t error) {
-    stream2.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) stream2.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) stream2.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) stream2.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) stream2.println("Receive Failed");
-    else if (error == OTA_END_ERROR) stream2.println("End Failed");
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
   });
   ArduinoOTA.begin();
-  stream2.println("OTA ready"); 
+  Serial.println("OTA ready"); 
 
 }
