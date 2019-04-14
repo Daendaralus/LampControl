@@ -48,8 +48,8 @@ AM2320 sensor;
 ESP8266WebServer server(80);
 LoopbackStream stream2(BUFFERSIZE); //Serial incoming + prints
 const int led = LED_BUILTIN;
-const int LIGHTPANEL1PIN = 1;
-const int LIGHTPANEL2PIN = 3;
+const int LIGHTPANEL1PIN = 3;
+const int FANPIN= 1;
 bool pin1=0, pin3 =0;
 
 bool panelStatus = false;
@@ -162,6 +162,16 @@ String getFormattedLocalTime()
   return String(string_format("%d-%02d-%02d %02d:%02d:%02d", split.tm_year, split.tm_mon, split.tm_mday, split.tm_hour, split.tm_min, split.tm_sec));
 }
 
+void clearConfigs()
+{
+  CalendarConfigMap.clear();
+      DailyConfigMap.clear();
+      for(int x = 0;x<366;++x)
+      {
+        CalendarToConfig[x] = 255;
+      }
+}
+
 //Stolen fromm :))) https://mariusbancila.ro/blog/2017/08/03/computing-day-of-year-in-c/
 namespace datetools
 {
@@ -236,18 +246,18 @@ bool handleFileRead(String path){  // send the right file to the client (if it e
   //startMessageLine();
   // server.client().setNoDelay(1);
 
-  Serial.print("handleFileRead: " + path);
+  stream2.print("handleFileRead: " + path);
   if(path.endsWith("/")) path += "status.html";           // If a folder is requested, send the index file
   String contentType = getContentType(path);             // Get the MIME type
   if(SPIFFS.exists(path)){  // If the file exists, either as a compressed archive, or normal                                       // Use the compressed version
     File file = SPIFFS.open(path, "r"); 
     auto s = file.size();
-    Serial.print("file exists....\n")  ;             // Open the file
+    stream2.print("file exists....\n")  ;             // Open the file
     server.send_P(200, contentType.c_str(), file.readString().c_str(), s);
     //size_t sent = server.streamFile(file, contentType);    // Send it to the client
     //Serial.print(string_format("wrote %d bytes", sent));
     file.close();                                          // Close the file again
-    Serial.println(String("\tSent file: ") + path);
+    stream2.println(String("\tSent file: ") + path);
     return true;
   }
   stream2.println(String("\tFile Not Found: ") + path);
@@ -280,21 +290,21 @@ void saveLightConfiguration()
   File f = SPIFFS.open(configFileName, "w");
   if(!f)
   {
-    Serial.println("Failed to open file while saving configuration!");
+    stream2.println("Failed to open file while saving configuration!");
   }
   for(auto daily : DailyConfigMap)
   {
     String thing = string_format("-%d:%s:%d:%d:%d:%d:\n", daily.first, daily.second.name.c_str(), daily.second.start_hours,daily.second.start_minutes, daily.second.end_hours,daily.second.end_minutes);
     auto written = f.printf(thing.c_str());
-    Serial.println(thing);
-    Serial.printf("Wrote %d bytes | Error: %d\n", written,f.getWriteError());
+    stream2.println(thing);
+    stream2.printf("Wrote %d bytes | Error: %d\n", written,f.getWriteError());
   }
   for(auto date : CalendarConfigMap)
   {
     String thing = string_format("~%d:%s:%d:%d:%d:\n", date.first, date.second.name.c_str(), date.second.start_day,date.second.end_day, date.second.daily_id);
     auto written =f.printf(thing.c_str());
-    Serial.println(thing);
-    Serial.printf("Wrote %d bytes | Error: %d\n", written,f.getWriteError());
+    stream2.println(thing);
+    stream2.printf("Wrote %d bytes | Error: %d\n", written,f.getWriteError());
     ;
   }
   f.flush();
@@ -309,16 +319,12 @@ void readLightConfiguration()
   if(!f)
   {
     startMessageLine();
-    Serial.println("Failed to open file while reading configuration! IMPORTANT. CHECK LIGHTS AND CONFIG PLEASE");
+    stream2.println("Failed to open file while reading configuration! IMPORTANT. CHECK LIGHTS AND CONFIG PLEASE");
+    clearConfigs();return;
   }
-  CalendarConfigMap.clear();
-  DailyConfigMap.clear();
-       for(int x = 0;x<366;++x)
-      {
-        CalendarToConfig[x] = -1;
-      }
+  clearConfigs();
   String curline =  f.readStringUntil('\n');
-  Serial.println(curline);
+  stream2.println(curline);
   while(curline.length()>0)
   {
     if (curline.length() > 1 && curline[0] == '-')    {
@@ -328,7 +334,7 @@ void readLightConfiguration()
       for(auto delim = idname.indexOf(':'); delim!=-1;delim = idname.indexOf(':', delim+1))
       {
         splits.push_back(idname.substring(lastidx+1, delim));
-        Serial.printf("Current split: \"%s\"\n",splits.back().c_str());
+        stream2.printf("Current split: \"%s\"\n",splits.back().c_str());
         lastidx=delim;
       }
       DailyConfigMap[splits[0].toInt()]= DailyConfiguration(splits[0].toInt(),splits[1], splits[3].toInt(),splits[2].toInt(),splits[5].toInt(),splits[4].toInt());
@@ -341,7 +347,7 @@ void readLightConfiguration()
       for(auto delim = idname.indexOf(':'); delim!=-1;delim = idname.indexOf(':', delim+1))
       {
         splits.push_back(idname.substring(lastidx+1, delim));
-                Serial.printf("Current split: \"%s\"\n",splits.back().c_str());
+                stream2.printf("Current split: \"%s\"\n",splits.back().c_str());
 
         lastidx=delim;
       }
@@ -352,7 +358,7 @@ void readLightConfiguration()
       }
     }
   curline =  f.readStringUntil('\n');
-    Serial.println(curline);
+    stream2.println(curline);
 
   }
 }
@@ -463,17 +469,18 @@ void handleConfigGet()
 {
     int numT = DailyConfigMap.size()+1;
     int numD = CalendarConfigMap.size()+1;
-    
-    
+    if(numT==1 && numD ==1)
+    {
+      server.send(200, "plain", "MAPS EMPTY");
+      return;
+    }
+
     DynamicJsonDocument doc(JSON_OBJECT_SIZE(2)+numT*JSON_OBJECT_SIZE(6)+numD*JSON_OBJECT_SIZE(5)+500);
     DynamicJsonDocument docT(numT*JSON_OBJECT_SIZE(6)+250);
     DynamicJsonDocument docD(numD*JSON_OBJECT_SIZE(5)+250);
-    auto jobj = doc.as<JsonObject>();
-    Serial.println(string_format("Times: %d | Dates: %d", numT-1, numD-1));
+    // auto jobj = doc.as<JsonObject>();
     for(auto time : DailyConfigMap)
     {
-      Serial.println("Constructing JSON for time...");
-      Serial.printf("%d - %s - %d:%d - %d:%d\n", time.second.id, time.second.name.c_str(), time.second.start_hours, time.second.start_minutes, time.second.end_hours, time.second.end_minutes);
       auto e = docT.addElement();
       e["id"] = time.second.id;
       e["name"] = time.second.name;
@@ -484,8 +491,6 @@ void handleConfigGet()
     }
     for(auto time : CalendarConfigMap)
     {
-            Serial.println("Constructing JSON for Date...");
-      Serial.printf("%d - %s - %d - %d - %d \n", time.second.id, time.second.name.c_str(), time.second.start_day, time.second.end_day, time.second.daily_id);
 
       auto e = docD.addElement();
       e["id"] = time.second.id;
@@ -498,7 +503,6 @@ void handleConfigGet()
     doc["dateranges"] = docD.as<JsonArray>();
     String meme;
     serializeJson(doc, meme);
-    Serial.println(meme);
     // server.client().setNoDelay(1);
     // server.setContentLength(meme.length()*sizeof(char));
     server.send(200, "application/json", meme);
@@ -512,55 +516,57 @@ void handleConfigSet()
     //json sstuff
     int numT = server.arg("numTimes").toInt();
     int numD = server.arg("numDates").toInt();
-    if(server.args() < 3 + numT*6+numD*5)
+    if(numT == 0 && numD ==0)
     {
-      //error and stuff
-        Serial.println("Set failed at 1");
-      server.send(400);
-    }    
-    for(int i=0;i<numT;++i)
-    {
-      DailyConfigMap[server.arg(2+i*6).toInt()]=DailyConfiguration(server.arg(2+i*6).toInt(), server.arg(2+i*6+1),server.arg(2+i*6+3).toInt(),server.arg(2+i*6+2).toInt(), server.arg(2+i*6+5).toInt(),server.arg(2+i*6+4).toInt());
+      clearConfigs();
     }
-
-     for(int x = 0;x<366;++x)
-      {
-        CalendarToConfig[x] = 255;
-      }
-    for(int i=0;i<numD;++i)
+    else
     {
-      DateConfiguration temp(server.arg(2+numT*6+i*5).toInt(), server.arg(2+numT*6+i*5+1),server.arg(2+numT*6+i*5+2).toInt(),server.arg(2+numT*6+i*5+3).toInt(),server.arg(2+numT*6+i*5+4).toInt());
-      if(DailyConfigMap.find(temp.daily_id)== DailyConfigMap.end())
+      clearConfigs();
+      if(server.args() < 3 + numT*6+numD*5)
       {
         //error and stuff
         readLightConfiguration();
-        Serial.println("Set failed at 2");
         server.send(400);
         return;
-      }
-      
-      CalendarConfigMap[temp.id] = temp;
-      
-     
-      
-      for(int x = temp.start_day;x<temp.end_day;++x)
+      }    
+      for(int i=0;i<numT;++i)
       {
-        if(CalendarToConfig[x]!=255)
+        DailyConfigMap[server.arg(2+i*6).toInt()]=DailyConfiguration(server.arg(2+i*6).toInt(), server.arg(2+i*6+1),server.arg(2+i*6+3).toInt(),server.arg(2+i*6+2).toInt(), server.arg(2+i*6+5).toInt(),server.arg(2+i*6+4).toInt());
+      }
+
+      
+      for(int i=0;i<numD;++i)
+      {
+        DateConfiguration temp(server.arg(2+numT*6+i*5).toInt(), server.arg(2+numT*6+i*5+1),server.arg(2+numT*6+i*5+2).toInt(),server.arg(2+numT*6+i*5+3).toInt(),server.arg(2+numT*6+i*5+4).toInt());
+        if(DailyConfigMap.find(temp.daily_id)== DailyConfigMap.end())
         {
-          //error overlapping memes
+          //error and stuff
           readLightConfiguration();
-        Serial.println(string_format("Set failed at 3: %d - %d", x, CalendarToConfig[x]));
           server.send(400);
           return;
         }
-        CalendarToConfig[x]=temp.daily_id;
-      }
+        
+        CalendarConfigMap[temp.id] = temp;
+        
       
+        
+        for(int x = temp.start_day;x<temp.end_day;++x)
+        {
+          if(CalendarToConfig[x]!=255)
+          {
+            //error overlapping memes
+            readLightConfiguration();
+            server.send(400);
+            return;
+          }
+          CalendarToConfig[x]=temp.daily_id;
+        }
+        
+      }
+      //stream.println("");
     }
-    //stream.println("");
   }
-  Serial.println(DailyConfigMap.size());
-  Serial.println(CalendarConfigMap.size());
   saveLightConfiguration();
   server.send(202);
 }
@@ -582,15 +588,15 @@ void addRESTSources()
 void setup(void){
   stream2.clear();
 
-  //GPIO 1 (TX) swap the pin to a GPIO.
-  // pinMode(1, FUNCTION_3); 
-  // //GPIO 3 (RX) swap the pin to a GPIO.
-  // pinMode(3, FUNCTION_3); 
-  // pinMode(3, OUTPUT);
-  //   pinMode(1, OUTPUT);
+  // GPIO 1 (TX) swap the pin to a GPIO.
+  pinMode(1, FUNCTION_3); 
+  //GPIO 3 (RX) swap the pin to a GPIO.
+  pinMode(3, FUNCTION_3); 
+  pinMode(3, OUTPUT);
+    pinMode(1, OUTPUT);
 
-  // digitalWrite(1, HIGH);
-  // digitalWrite(3, HIGH);
+  digitalWrite(1, LOW);
+  digitalWrite(3, LOW);
   
   //AM2320 stuff
   Wire.begin(0,2);
@@ -598,7 +604,7 @@ void setup(void){
 
   //pinMode(led, OUTPUT);
   //digitalWrite(led, 0);
-  Serial.begin(115200);
+  // Serial.begin(115200);
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   stream2.println("");
@@ -636,7 +642,7 @@ void setup(void){
 
   OTASetup();
   auto res = SPIFFS.begin();
-  Serial.println(res?"SPIFFS STARTED": "SHITS FUCKED");
+  stream2.println(res?"SPIFFS STARTED": "SHITS FUCKED");
   StatusPrintln("HTTP server started");
   startMessageLine();
   stream2.print("free heap=");
@@ -654,22 +660,41 @@ void setup(void){
   startMessageLine();
   StatusPrintln("Reading lighting data...");
   readLightConfiguration();
-Dir root = SPIFFS.openDir("");
- 
-  while(root.next()){
- 
-      Serial.print("FILE: ");
-      Serial.println(root.fileName());
-  }
-    FSInfo info;
-  SPIFFS.info(info);
-
-  unsigned int freebytes = info.totalBytes-info.usedBytes;
-  Serial.println(string_format("free bytes on flash: %i", freebytes)); 
-    server.begin();
-  Serial.println("Success.");
+  server.begin();
+  stream2.println("Success.");
   //server.client().setDefaultNoDelay(1);
 }
+
+void updateExternals()
+{
+  // auto time = getLocalTime();
+  auto split = getLocalTM();
+  //What day is it?
+  auto day = split.tm_yday;
+  auto timeid = CalendarToConfig[day];
+  if(DailyConfigMap.count(timeid)>0)
+  {
+    auto& config = DailyConfigMap[timeid];
+    auto startminutes = (config.start_hours*60+config.start_minutes);
+    auto endminutess = (config.end_hours*60+config.end_minutes);
+    auto nowminutes= split.tm_hour*60+split.tm_min;
+    if(startminutes<=nowminutes && endminutess> nowminutes)
+    {
+      //Stuff shoiuld be turned on!
+      digitalWrite(FANPIN, LOW);
+      digitalWrite(LIGHTPANEL1PIN, LOW);
+      panelStatus = true; fanStatus =true;
+    }
+    else
+    {
+      digitalWrite(FANPIN, HIGH);
+      digitalWrite(LIGHTPANEL1PIN,HIGH);
+      panelStatus = false; fanStatus =false;
+
+  }
+  }
+}
+
 
 void loop(void){
   //bufferSerial();
@@ -682,17 +707,17 @@ void loop(void){
 //   stream2.println(stream2.pos);
 //   delayStart = millis();
 //   }
-    // static int last_result_time = 0;
-    // if(millis() - last_result_time > 1000)
-    // {
-    //   sensor.measure();
-    //   auto h = sensor.getHumidity();
-    //   auto t = sensor.getTemperature();
-    //   //startMessageLine();
-
-    //   //StatusPrintln(string_format("Time:"));
-    //   last_result_time = millis();
-    // }
+    static int last_result_time = 0;
+    if(millis() - last_result_time > 10000)
+    {
+      sensor.measure();
+      lastHum= sensor.getHumidity();
+      lastTemp = sensor.getTemperature();
+      //startMessageLine();
+      updateExternals();
+      //StatusPrintln(string_format("Time:"));
+      last_result_time = millis();
+    }
     delay(100);
     server.handleClient();
   //console_send();
@@ -704,20 +729,20 @@ void OTASetup()
   ArduinoOTA.setPassword(otapw);
   ArduinoOTA.setPort(8266);
   ArduinoOTA.onStart([]() {
-    Serial.println("Start");
+    stream2.println("Start");
   });
   ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
+    stream2.println("\nEnd");
   });
   ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    stream2.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) stream2.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) stream2.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) stream2.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) stream2.println("Receive Failed");
+    else if (error == OTA_END_ERROR) stream2.println("End Failed");
   });
   ArduinoOTA.begin();
-  Serial.println("OTA ready"); 
+  stream2.println("OTA ready"); 
 
 }

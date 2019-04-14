@@ -109,8 +109,8 @@ function updateStatus() {
       success: function(data) {
         $('.temp-value').empty().append(data.tval);
         $('.humid-value').empty().append(data.hval);
-        $('.light-value').empty().append(data.light);
-        $('.fan-value').empty().append(data.fan);
+        $('.light-value').empty().append(data.light?"ON":"OFF");
+        $('.fan-value').empty().append(data.fan?"ON":"OFF");
 
         $('.status-box').append(data.status);
         $('.status-box').scrollTop(99999);
