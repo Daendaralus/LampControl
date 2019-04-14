@@ -32,13 +32,13 @@
             </select>
         </p>
         <p id="ConfigData">
-            Start  :<input type="text"  name="timestart" id="timepicker_start"/></br>
-            End     :<input type="text" name="timeend" id="timepicker_end" /></br></br>
+            Start  :<input type="text"  name="timestart" id="timepicker_start" autocomplete="off" /></br>
+            End     :<input type="text" name="timeend" id="timepicker_end" autocomplete="off" /></br></br>
             LEDs: <select name="StateSelect" size="2">
                 <option>On</option>
                 <option>Off</option>
             </select></br></br>
-            Name: <input type="text"  name="timespanname" /></br>
+            Name: <input type="text"  name="timespanname" autocomplete="off" /></br>
             <input class="submit-target" id="timespanbuttons" type="button" value="New" onclick="newTimeRangeBtn();" />
             <input class="submit-target" id="timespanbuttons" type="button" value="Save" onclick="saveTimeRange();" />
             <input class="submit-target" id="timespanbuttons" type="button" value="Delete" onclick="deleteTimeRange();" />
@@ -48,9 +48,9 @@
             </select>
         </p>
         <p id="DatesData">
-            Daterange:<input type="text" name="daterange" value="01/01/2018 - 01/15/2018" style="margin-left:10px"/></br>
+            Daterange:<input type="text" name="daterange" value="01/01/2018 - 01/15/2018" style="margin-left:10px" autocomplete="off" /></br>
             </br></br></br></br></br>
-            Name: <input type="text" name="datename" /></br>
+            Name: <input type="text" name="datename" autocomplete="off" /></br>
             <input class="submit-target" id="datebuttons" type="button" value="New" onclick="newDateRangeBtn();" />
             <input class="submit-target" id="datebuttons" type="button" value="Save" onclick="saveDateRange();" />
             <input class="submit-target" id="datebuttons" type="button" value="Delete" onclick="deleteDateRange();" />
