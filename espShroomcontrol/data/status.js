@@ -80,6 +80,9 @@ class DateConfig
     $("[name='daterange']").val(`${momentFormatted(this.start)} - ${momentFormatted(this.end)}`); // TODO Format differently
     $("[name='datename']").val(this.name);
     $("[name='ConfigTimes']").val(TimeMap.get(this.timeid).name);
+    var x = document.getElementById("ConfigTimeId");
+    x.value = TimeMap[this.timeid].name;
+    TimeMap[this.timeid].fillBoxes();
   }
 
   toJSON()
@@ -107,11 +110,11 @@ function updateStatus() {
       method: "GET",
       url: window.location.origin+"/get/status",
       success: function(data) {
-        $('.temp-value').empty().append(data.tval);
-        $('.humid-value').empty().append(data.hval);
+        $('.temp-value').empty().append(`${data.tval}C`);
+        $('.humid-value').empty().append(`${data.hval}%`);
         $('.light-value').empty().append(data.light?"ON":"OFF");
         $('.fan-value').empty().append(data.fan?"ON":"OFF");
-
+        $('.time-value').empty().append(data.time);
         $('.status-box').append(data.status);
         $('.status-box').scrollTop(99999);
       },

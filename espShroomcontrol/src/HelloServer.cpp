@@ -415,12 +415,13 @@ void handleNotFound(){
 
 void handleStatusData()
 {
-  StaticJsonDocument<0x1FF> jsonBuffer; //TODO SOMETHING + STATUS BUFFER SIZE
+  StaticJsonDocument<0x5FF> jsonBuffer; //TODO SOMETHING + STATUS BUFFER SIZE
   char JSONmessageBuffer[0x1FF];
   jsonBuffer["tval"] = lastTemp;
   jsonBuffer["hval"] = lastHum;
   jsonBuffer["light"] = panelStatus;
   jsonBuffer["fan"] = fanStatus;
+  jsonBuffer["time"] = getFormattedLocalTime();
   jsonBuffer["status"] = stream2.available()?stream2.readString():""; //TODO move time thing to read buffers part on condition of encountering a \n :)
   serializeJsonPretty(jsonBuffer,JSONmessageBuffer);
   server.send(200, "application/json", JSONmessageBuffer);
@@ -691,8 +692,16 @@ void updateExternals()
       digitalWrite(LIGHTPANEL1PIN,HIGH);
       panelStatus = false; fanStatus =false;
 
+    }
   }
+  else
+  {
+    /* No config found: Default mode - meaning BLAST EVERYTHING ON */
+      digitalWrite(FANPIN, LOW);
+      digitalWrite(LIGHTPANEL1PIN, LOW);
+      panelStatus = true; fanStatus =true;
   }
+  
 }
 
 
